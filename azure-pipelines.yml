@@ -1,0 +1,33 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  # Reference the Variable Group we created in the Library
+  - group: AppSecrets 
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build_Backend
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '18.x'
+    - script: |
+        cd backend
+        npm install
+      displayName: 'Install Backend Dependencies'
+
+  - job: Build_Frontend
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '18.x'
+    - script: |
+        cd frontend
+        npm install
+        npm run build
+      displayName: 'Build React Frontend'
