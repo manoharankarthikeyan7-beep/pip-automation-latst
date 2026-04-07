@@ -5,12 +5,9 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  # 1. Reference your Variable Group from Library
   - group: AppSecrets 
-  
-  # 2. Define static variables with correct list syntax
   - name: webAppName
-    value: 'pipelineapi-hhb5hshxgjgbsbueh'
+    value: 'PipelineAPI' # UPDATED TO MATCH SCREENSHOT
   - name: azureServiceConnection
     value: 'Azure subscription 1 (e26f51cc-2002-4eef-9131-5841b18763a7)' 
   - name: resourceGroupName
@@ -25,39 +22,32 @@ stages:
     - task: NodeTool@0
       inputs:
         versionSpec: '18.x'
-      displayName: 'Install Node.js'
 
-    # Build Backend
     - script: |
         cd backend
         npm install
-      displayName: 'Install Backend Dependencies'
+      displayName: 'Install Backend'
 
-    # Build Frontend
     - script: |
         cd frontend
         npm install
         npm run build
-      displayName: 'Build React Frontend'
+      displayName: 'Build Frontend'
 
-    # Move Frontend build into Backend's public folder
     - script: |
         mkdir -p backend/public
         cp -r frontend/build/* backend/public/
-      displayName: 'Merge Frontend into Backend'
+      displayName: 'Merge Frontend to Backend'
 
-    # Package the backend folder (which now contains the frontend)
     - task: ArchiveFiles@2
       inputs:
         rootFolderOrFile: 'backend'
         includeRootFolder: false
         archiveType: 'zip'
         archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-      displayName: 'Zip Artifacts'
 
     - publish: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
       artifact: drop
-      displayName: 'Publish Artifact'
 
 - stage: Deploy
   displayName: 'Deploy to Azure'
@@ -65,16 +55,12 @@ stages:
   condition: succeeded()
   jobs:
   - job: DeployWeb
-    displayName: 'Push to App Service'
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    # Download the zip file created in the Build stage
     - download: current
       artifact: drop
-      displayName: 'Download Build Artifacts'
 
-    # Deploying with explicit Resource Group and App Type
     - task: AzureWebApp@1
       displayName: 'Azure Web App Deploy'
       inputs:
