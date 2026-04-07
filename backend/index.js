@@ -2,16 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
-const path = require('path'); // Required for file paths
+const path = require('path');
+const axios = require('axios'); // Add this to your package.json
 require('dotenv').config();
 
 const app = express();
-
-// --- MIDDLEWARE SETUP ---
 app.use(cors());
 app.use(express.json());
 
-// --- 1. SETUP AZURE AD KEY DISCOVERY ---
+// --- 1. SECURITY SETUP (Keep your existing logic) ---
 const client = jwksClient({
   jwksUri: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/discovery/v2.0/keys`
 });
@@ -24,7 +23,6 @@ function getKey(header, callback) {
   });
 }
 
-// --- 2. MIDDLEWARE: TOKEN VALIDATION (The Bouncer) ---
 const validateToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token provided' });
@@ -40,46 +38,53 @@ const validateToken = (req, res, next) => {
   });
 };
 
-// --- 3. MIDDLEWARE: RBAC ENFORCEMENT ---
-const authorizeRole = (allowedGroups) => {
-  return (req, res, next) => {
-    const userGroups = req.user.groups || [];
-    const hasAccess = allowedGroups.some(groupId => userGroups.includes(groupId));
-    
-    if (!hasAccess) return res.status(403).json({ error: 'Insufficient Permissions' });
-    next();
-  };
-};
+// --- 2. AZURE DEVOPS CONFIG ---
+// Make sure these match your "Environment Variables" in the Azure Portal
+const ADO_PAT = process.env.DEVOPS_PAT; 
+const ADO_ORG = "YOUR_ORG_NAME";     // Add this to your Environment Variables too
+const ADO_PROJECT = "YOUR_PROJECT";  // Add this to your Environment Variables too
 
-// --- 4. PROTECTED API ROUTES ---
+const authHeader = `Basic ${Buffer.from(`:${ADO_PAT}`).toString('base64')}`;
 
-// Admin only: Delete
-app.delete('/api/pipelines/:id', validateToken, authorizeRole([process.env.ADMIN_GROUP_ID]), (req, res) => {
-    console.log(`Audit: ${req.user.upn} deleted pipeline ${req.params.id}`);
-    res.json({ message: 'Pipeline deleted' });
+// --- 3. THE ACTUAL CREATION ROUTE ---
+app.post('/api/pipelines/create', validateToken, async (req, res) => {
+    const { pipelineName, repoId, yamlPath } = req.body;
+
+    console.log(`User ${req.user.upn} is creating pipeline: ${pipelineName}`);
+
+    try {
+        const response = await axios.post(
+            `https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/pipelines?api-version=7.0`,
+            {
+                name: pipelineName,
+                configuration: {
+                    type: "yaml",
+                    path: yamlPath || "/azure-pipelines.yml",
+                    repository: {
+                        id: repoId, // This is the GUID of your Repo
+                        type: "azureReposGit"
+                    }
+                }
+            },
+            { 
+                headers: { 
+                    'Authorization': authHeader,
+                    'Content-Type': 'application/json'
+                } 
+            }
+        );
+        res.json({ message: 'Pipeline Created!', id: response.data.id });
+    } catch (error) {
+        console.error(error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to create pipeline in Azure DevOps' });
+    }
 });
 
-// DevOps & Admin: Create
-app.post('/api/pipelines/create', validateToken, authorizeRole([process.env.ADMIN_GROUP_ID, process.env.DEVOPS_GROUP_ID]), (req, res) => {
-    res.json({ message: 'Pipeline creation triggered in Azure DevOps' });
-});
-
-// All Auth Users: View
-app.get('/api/pipelines', validateToken, (req, res) => {
-    res.json({ data: [] });
-});
-
-// --- 5. STATIC FRONTEND HOSTING (CRITICAL) ---
-// This serves the React build files from the 'public' folder created by your YAML pipeline
+// --- 4. STATIC HOSTING ---
 app.use(express.static(path.join(__dirname, 'public')));
-
-// This handles React routing (allows page refreshes without 404s)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// --- 6. START SERVER ---
-const PORT = process.env.PORT || 8080; // Azure typically uses 8080 for Node.js
-app.listen(PORT, () => {
-    console.log(`Backend and Frontend live on port ${PORT}`);
-});
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Self-Service Portal live on ${PORT}`));
