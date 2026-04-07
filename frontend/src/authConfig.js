@@ -1,8 +1,9 @@
 export const msalConfig = {
     auth: {
-        clientId: "ef8c8368-c7bf-4a2e-b204-070aa4100256", // From Phase 2 SPA registration
-        authority: "https://login.microsoftonline.com/YOUR_TENANT_ID",
-        redirectUri: "http://localhost:3000", // Or your production URL
+        clientId: "ef8c8368-c7bf-4a2e-b204-070aa4100256", 
+        authority: "https://login.microsoftonline.com/251c8343-663c-4ab5-996e-8bf8e88aca58",
+        // Using window.location.origin is the safest way to match the Azure URL exactly
+        redirectUri: window.location.origin, 
     },
     cache: {
         cacheLocation: "sessionStorage",
@@ -10,7 +11,6 @@ export const msalConfig = {
     }
 };
 
-// This scope must match the one you "Exposed" in the API registration
 export const loginRequest = {
     scopes: ["api://2c51c622-567f-41cc-b46c-1a1ace37c0ed/Pipeline.Access"]
 };
