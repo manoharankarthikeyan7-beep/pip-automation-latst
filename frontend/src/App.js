@@ -9,7 +9,7 @@ const PipelineWizard = () => {
     const [status, setStatus] = useState("");
     const [repos, setRepos] = useState([]);
     const [branches, setBranches] = useState([]);
-    const [searchTerm, setSearchTerm] = useState(""); // Search logic for Discovery
+    const [searchTerm, setSearchTerm] = useState(""); // State to track search input
 
     const [formData, setFormData] = useState({ 
         repoId: '', repoName: '', branch: '', yamlPath: '/azure-pipelines.yml', name: '' 
@@ -73,22 +73,44 @@ const PipelineWizard = () => {
 
             {step === 1 && (
                 <div>
-                    <h3>1. Select Repository</h3>
+                    <h3>1. Search Repository</h3>
+                    <p style={{ fontSize: "14px", color: "#666" }}>Enter at least 2 characters to find your repository.</p>
                     <input 
                         type="text"
                         placeholder="Search repositories..."
-                        style={{ width: "100%", padding: "12px", marginBottom: "15px", boxSizing: "border-box", border: "1px solid #ccc", borderRadius: "4px" }}
+                        style={{ width: "100%", padding: "12px", marginBottom: "15px", boxSizing: "border-box", border: "2px solid #0078d4", borderRadius: "4px" }}
                         onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
                     />
-                    <div style={{ maxHeight: "300px", overflowY: "auto", border: "1px solid #ddd", background: "#fff" }}>
-                        {repos
-                            .filter(r => r.name.toLowerCase().includes(searchTerm))
-                            .map(r => (
-                                <button key={r.id} onClick={() => handleRepoSelect(r)} style={{ display: "block", width: "100%", padding: "10px", textAlign: "left", border: "none", borderBottom: "1px solid #eee", cursor: "pointer", background: "white" }}>
-                                    {r.name}
-                                </button>
-                            ))
-                        }
+                    
+                    <div style={{ maxHeight: "300px", overflowY: "auto", border: "1px solid #ddd", background: "#fff", borderRadius: "4px" }}>
+                        {/* LOGIC CHANGE: 
+                          If searchTerm is 2 or more characters, show the filtered list.
+                          Otherwise, show a friendly prompt.
+                        */}
+                        {searchTerm.length >= 2 ? (
+                            repos
+                                .filter(r => r.name.toLowerCase().includes(searchTerm))
+                                .map(r => (
+                                    <button 
+                                        key={r.id} 
+                                        onClick={() => handleRepoSelect(r)} 
+                                        style={{ display: "block", width: "100%", padding: "12px", textAlign: "left", border: "none", borderBottom: "1px solid #eee", cursor: "pointer", background: "white" }}
+                                    >
+                                        {r.name}
+                                    </button>
+                                ))
+                        ) : (
+                            <div style={{ padding: "30px", textAlign: "center", color: "#999" }}>
+                                Start typing to search...
+                            </div>
+                        )}
+
+                        {/* If they search for something that doesn't exist */}
+                        {searchTerm.length >= 2 && repos.filter(r => r.name.toLowerCase().includes(searchTerm)).length === 0 && (
+                            <div style={{ padding: "20px", textAlign: "center", color: "red" }}>
+                                No results found for "{searchTerm}"
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -155,5 +177,4 @@ function App() {
   );
 }
 
-// THIS IS THE LINE THAT WAS MISSING OR MISPLACED:
 export default App;
