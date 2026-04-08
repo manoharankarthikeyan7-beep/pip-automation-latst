@@ -12,6 +12,7 @@ const PipelineWizard = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [yamlContent, setYamlContent] = useState("");
     
+    // UI states for Variables and Action Menus
     const [variables, setVariables] = useState([]); 
     const [showSaveOptions, setShowSaveOptions] = useState(false);
 
@@ -25,25 +26,29 @@ const PipelineWizard = () => {
         primaryBtn: { padding: "10px 20px", background: "#0078d4", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "600" },
         codeArea: { background: "#1e1e1e", color: "#d4d4d4", padding: "20px", borderRadius: "4px", fontFamily: "monospace", overflow: "auto", maxHeight: "400px", textAlign: "left", fontSize: "13px", lineHeight: "1.5" },
         varBox: { marginBottom: "20px", padding: "15px", background: "#f8f9fa", border: "1px solid #eee", borderRadius: "4px" },
+        
+        // Split Button Styles
         splitBtnContainer: { display: "flex", position: "relative" },
         runBtn: { padding: "10px 20px", background: "#107c10", color: "white", border: "none", borderRadius: "4px 0 0 4px", cursor: "pointer", fontWeight: "600" },
         arrowBtn: { padding: "10px 12px", background: "#0b5a0b", color: "white", border: "none", borderRadius: "0 4px 4px 0", borderLeft: "1px solid #084a08", cursor: "pointer" },
         dropdownMenu: { position: "absolute", top: "42px", right: 0, background: "white", border: "1px solid #ccc", zIndex: 100, width: "140px", boxShadow: "0 4px 8px rgba(0,0,0,0.1)" },
         
-        // STYLES FOR THE REPO LIST
+        // --- STICKY VERTICAL REPO LIST ---
         repoListContainer: { 
             border: "1px solid #eaeaea", 
             borderRadius: "4px", 
             marginTop: "10px", 
-            maxHeight: "450px", 
+            maxHeight: "400px", 
             overflowY: "auto",
+            display: "flex",
+            flexDirection: "column", // Forces one repo per line
             backgroundColor: "#fff"
         },
         repoItem: { 
-            display: "flex", 
+            display: "flex",
             alignItems: "center",
             width: "100%", 
-            padding: "12px 16px", 
+            padding: "14px 18px", 
             textAlign: "left", 
             cursor: "pointer", 
             border: "none", 
@@ -52,6 +57,19 @@ const PipelineWizard = () => {
             fontSize: "14px",
             color: "#323130",
             transition: "background 0.1s"
+        },
+        repoIcon: {
+            width: "28px",
+            height: "28px",
+            background: "#0078d4",
+            color: "white",
+            borderRadius: "4px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: "15px",
+            fontSize: "13px",
+            fontWeight: "bold"
         },
         backBtn: { marginTop: "20px", background: "none", border: "none", color: "#0078d4", cursor: "pointer", fontSize: "14px", padding: 0 }
     };
@@ -63,7 +81,7 @@ const PipelineWizard = () => {
                 const res = await fetch("/api/repos", { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
                 const data = await res.json();
                 setRepos(data || []);
-            } catch (err) { console.error(err); }
+            } catch (err) { console.error("Repo Fetch Error:", err); }
         };
         if (accounts.length > 0) fetchRepos();
     }, [instance, accounts]);
@@ -84,7 +102,7 @@ const PipelineWizard = () => {
     const handleBranchChange = async (branchName) => {
         setFormData({ ...formData, branch: branchName, yamlPath: '' });
         if (!branchName) return;
-        setStatus("Fetching YAML files...");
+        setStatus("Fetching files...");
         try {
             const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
             const res = await fetch(`/api/repos/${formData.repoId}/yaml-files?branch=${branchName}`, {
@@ -93,7 +111,7 @@ const PipelineWizard = () => {
             const data = await res.json();
             setYamlFiles(data || []);
             setStatus("");
-        } catch (err) { setStatus("Error."); }
+        } catch (err) { setStatus("Error loading files."); }
     };
 
     const fetchYamlPreview = async () => {
@@ -107,24 +125,45 @@ const PipelineWizard = () => {
             setYamlContent(data.content);
             setStep(3);
             setStatus("");
-        } catch (err) { setStatus("Error."); }
+        } catch (err) { setStatus("Error previewing YAML."); }
     };
 
     const handleAction = async (shouldRun) => {
         setShowSaveOptions(false);
-        setStatus(shouldRun ? "🚀 Running Pipeline..." : "💾 Saving Pipeline...");
+        setStatus(shouldRun ? "🚀 Creating & Running..." : "💾 Saving...");
+        
         const formattedVars = {};
         variables.forEach(v => { if(v.name) formattedVars[v.name] = { value: v.value }; });
+
         try {
             const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
+            const payload = { 
+                repoId: formData.repoId,
+                repoName: formData.repoName,
+                branch: formData.branch,
+                yamlPath: formData.yamlPath,
+                pipelineName: formData.name || `Pipeline-${formData.repoName}`, 
+                variables: formattedVars, 
+                runPipeline: shouldRun 
+            };
+
             const res = await fetch("/api/pipelines/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tokenResponse.accessToken}` },
-                body: JSON.stringify({ ...formData, pipelineName: formData.name, variables: formattedVars, runPipeline: shouldRun })
+                body: JSON.stringify(payload)
             });
-            if (res.ok) setStatus(shouldRun ? "✅ Created & Triggered!" : "✅ Saved Successfully!");
-            else setStatus("❌ Action Failed.");
-        } catch (err) { setStatus("❌ Error occurred."); }
+
+            if (res.ok) {
+                setStatus(shouldRun ? "✅ Triggered Successfully!" : "✅ Saved Successfully!");
+            } else {
+                const errorText = await res.text();
+                console.error("Server 500 Details:", errorText);
+                setStatus("❌ Action Failed (Server Error 500).");
+            }
+        } catch (err) { 
+            console.error("Action Error:", err);
+            setStatus("❌ Network/Server Error."); 
+        }
     };
 
     return (
@@ -134,7 +173,7 @@ const PipelineWizard = () => {
             {/* STEP 1: SELECT REPOSITORY LIST */}
             {step === 1 && (
                 <div>
-                    <h2 style={{ fontSize: "20px", marginBottom: "20px" }}>Select a repository</h2>
+                    <h2 style={{ fontSize: "18px", marginBottom: "20px" }}>Select a repository</h2>
                     <input 
                         type="text" 
                         placeholder="Filter repositories" 
@@ -150,7 +189,7 @@ const PipelineWizard = () => {
                                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#f3f2f1"}
                                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                             >
-                                <span style={{ color: "#0078d4", fontWeight: "600", marginRight: "8px" }}>{r.name.charAt(0).toUpperCase()}</span>
+                                <div style={styles.repoIcon}>{r.name.charAt(0).toUpperCase()}</div>
                                 {r.name}
                             </button>
                         ))}
@@ -182,9 +221,12 @@ const PipelineWizard = () => {
             {step === 3 && (
                 <div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px", alignItems: "center" }}>
-                        <h2 style={{ margin: 0 }}>Review your pipeline YAML</h2>
+                        <h2 style={{ margin: 0 }}>Review YAML</h2>
                         <div style={{ display: "flex", gap: "8px" }}>
+                            {/* VARIABLES BUTTON */}
                             <button onClick={() => setVariables([...variables, { name: '', value: '' }])} style={{ padding: "10px 15px", background: "#f0f0f0", border: "1px solid #ccc", borderRadius: "4px", cursor: "pointer", fontWeight: "600" }}>Variables</button>
+                            
+                            {/* RUN/SAVE SPLIT BUTTON */}
                             <div style={styles.splitBtnContainer}>
                                 <button onClick={() => handleAction(true)} style={styles.runBtn}>Run</button>
                                 <button onClick={() => setShowSaveOptions(!showSaveOptions)} style={styles.arrowBtn}>▼</button>
@@ -217,6 +259,7 @@ const PipelineWizard = () => {
                         <input style={styles.input} value={formData.name} placeholder="Name your pipeline" onChange={(e) => setFormData({...formData, name: e.target.value})} />
                     </div>
                     
+                    {/* BACK TO CONFIGURE LINK */}
                     <button onClick={() => setStep(2)} style={styles.backBtn}>
                         ← Back to Configure
                     </button>
@@ -233,7 +276,7 @@ function App() {
       <h1>Pipeline Generator</h1>
       <UnauthenticatedTemplate>
         <div style={{ textAlign: "center", marginTop: "50px" }}>
-          <button onClick={() => instance.loginRedirect(loginRequest)} style={{ padding: "12px 24px", background: "#0078d4", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "600" }}>Login to Azure DevOps</button>
+          <button onClick={() => instance.loginRedirect(loginRequest)} style={{ padding: "12px 24px", background: "#0078d4", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "600" }}>Login to Azure</button>
         </div>
       </UnauthenticatedTemplate>
       <AuthenticatedTemplate>
