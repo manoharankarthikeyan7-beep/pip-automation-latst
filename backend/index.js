@@ -108,3 +108,28 @@ app.get('*', (req, res) => {
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => console.log(`Server online on port ${PORT}`));
+
+// ... (keep your existing imports and validateToken middleware)
+
+// NEW ROUTE: Fetch YAML content for the "Review" step
+app.get('/api/repos/:repoId/content', validateToken, async (req, res) => {
+    const { path, branch } = req.query;
+    // Clean branch name for the API
+    const version = branch.replace('refs/heads/', '');
+    
+    try {
+        const url = `https://dev.azure.com/${process.env.ADO_ORG_NAME}/${process.env.ADO_PROJECT_NAME}/_apis/git/repositories/${req.params.repoId}/items?path=${path}&versionDescriptor.version=${version}&$format=text&api-version=7.1`;
+        
+        const response = await axios.get(url, { 
+            headers: { 'Authorization': getAdoHeader() } 
+        });
+        
+        // Return the raw text of the YAML file
+        res.json({ content: response.data });
+    } catch (e) {
+        console.error("Content Fetch Error:", e.message);
+        res.status(404).json({ error: "YAML file not found. Check the path and branch." });
+    }
+});
+
+// ... (keep your /api/repos, /api/branches, and /api/pipelines/create routes)
