@@ -10,22 +10,18 @@ const PipelineWizard = () => {
     const [branches, setBranches] = useState([]);
     const [yamlFiles, setYamlFiles] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [yamlContent, setYamlContent] = useState("");
     
-    // --- ENHANCEMENTS STATE ---
-    const [isManualPath, setIsManualPath] = useState(false); // For Monorepos
-    const [isCustomName, setIsCustomName] = useState(false); // Name restriction bypass
+    // Enhancement States
+    const [isManualPath, setIsManualPath] = useState(false);
     const [nameError, setNameError] = useState("");
-    const [variables, setVariables] = useState([]); 
-    const [showSaveOptions, setShowSaveOptions] = useState(false);
 
     const [formData, setFormData] = useState({ 
         repoId: '', repoName: '', branch: '', yamlPath: '', name: '' 
     });
 
-    // Enhancement 1: 10-Minute Session Timeout
+    // 10-Minute Session Timeout Enhancement
     useEffect(() => {
-        const timeoutLimit = 10 * 60 * 1000; // 10 minutes
+        const timeoutLimit = 10 * 60 * 1000;
         const timer = setTimeout(() => {
             alert("Session expired (10 minutes). Re-authenticating...");
             instance.logoutRedirect();
@@ -45,17 +41,11 @@ const PipelineWizard = () => {
         backBtn: { marginTop: "20px", background: "none", border: "none", color: "#0078d4", cursor: "pointer", fontSize: "14px", padding: 0 }
     };
 
-    // Enhancement 2: Pipeline Name Logic
+    // Updated Naming Logic: Strictly focused on 48 character limit
     const handleNameChange = (val) => {
         setFormData({ ...formData, name: val });
-        if (isCustomName) {
-            setNameError("");
-            return;
-        }
         if (val.length > 48) {
-            setNameError("Name exceeds 48 characters limit.");
-        } else if (!val.toLowerCase().includes("k8s") && !val.toLowerCase().includes("deployment")) {
-            setNameError("Name must contain 'k8s' or 'deployment' (or switch to Other/Custom).");
+            setNameError("Pipeline name cannot exceed 48 characters.");
         } else {
             setNameError("");
         }
@@ -99,18 +89,47 @@ const PipelineWizard = () => {
         } catch (err) { console.error(err); }
     };
 
+    // Logic to ensure pipeline is truly created
+    const handleCreatePipeline = async () => {
+        setStatus("🚀 Communicating with Azure DevOps...");
+        try {
+            const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
+            const res = await fetch("/api/pipelines/create", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Authorization": `Bearer ${tokenResponse.accessToken}` 
+                },
+                body: JSON.stringify({ 
+                    ...formData, 
+                    pipelineName: formData.name, 
+                    runPipeline: false 
+                })
+            });
+
+            if (res.ok) {
+                setStatus("✅ Saved Successfully!");
+                // Optional: setStep(1) or reset form here
+            } else {
+                const errData = await res.json();
+                setStatus(`❌ Failed to create: ${errData.message || "Invalid configuration"}`);
+            }
+        } catch (err) {
+            setStatus("❌ Server connection error.");
+        }
+    };
+
     return (
         <div style={styles.card}>
             {status && <p style={{ color: "#0078d4", textAlign: "center" }}><b>{status}</b></p>}
 
-            {/* STEP 1: REPO LIST */}
             {step === 1 && (
                 <div style={{ width: "100%" }}>
-                    <h2 style={{ fontSize: "18px", marginBottom: "15px" }}>Select a repository</h2>
-                    <input type="text" placeholder="Filter repositories" style={styles.input} onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} />
+                    <h2 style={{ fontSize: "18px", marginBottom: "15px" }}>1. Select a repository</h2>
+                    <input type="text" placeholder="Filter by keywords" style={styles.input} onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} />
                     <div style={styles.repoListWrapper}>
                         {repos.filter(r => r.name.toLowerCase().includes(searchTerm)).map(r => (
-                            <button key={r.id} onClick={() => handleRepoSelect(r)} style={styles.repoItem} onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#f3f2f1"} onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#fff"}>
+                            <button key={r.id} onClick={() => handleRepoSelect(r)} style={styles.repoItem}>
                                 <div style={{ width: "24px", color: "#0078d4", fontWeight: "bold" }}>{r.name.charAt(0).toUpperCase()}</div>
                                 <span style={{ flexGrow: 1 }}>{r.name}</span>
                             </button>
@@ -119,12 +138,10 @@ const PipelineWizard = () => {
                 </div>
             )}
 
-            {/* STEP 2: BRANCH & YAML (Monorepo Enhancement) */}
             {step === 2 && (
                 <div>
-                    <h2>Configure Configuration</h2>
+                    <h2>2. Configure Path</h2>
                     <p>Repository: <b>{formData.repoName}</b></p>
-                    
                     <label style={styles.label}>Branch</label>
                     <select style={styles.input} value={formData.branch} onChange={(e) => handleBranchChange(e.target.value)}>
                         <option value="">-- Select Branch --</option>
@@ -133,13 +150,13 @@ const PipelineWizard = () => {
 
                     <label style={styles.label}>YAML Path</label>
                     <span style={styles.toggleLink} onClick={() => setIsManualPath(!isManualPath)}>
-                        {isManualPath ? "← Use file picker" : "Paste path manually (for Monorepos) →"}
+                        {isManualPath ? "← Use file picker" : "Paste path manually (Monorepo) →"}
                     </span>
 
                     {isManualPath ? (
                         <input 
                             style={styles.input} 
-                            placeholder="e.g. /services/api/azure-pipelines.yml" 
+                            placeholder="e.g. /folder/azure-pipelines.yml" 
                             value={formData.yamlPath}
                             onChange={(e) => setFormData({...formData, yamlPath: e.target.value})}
                         />
@@ -155,20 +172,14 @@ const PipelineWizard = () => {
                 </div>
             )}
 
-            {/* STEP 3: PIPELINE NAME (Naming Enhancement) */}
             {step === 3 && (
                 <div>
                     <h2>Review & Name</h2>
-                    
                     <label style={styles.label}>Pipeline Name</label>
-                    <span style={styles.toggleLink} onClick={() => { setIsCustomName(!isCustomName); setNameError(""); }}>
-                        {isCustomName ? "Switch to K8s/Deployment mode" : "Other / Custom (No Restrictions)"}
-                    </span>
-
                     <input 
                         style={styles.input} 
                         value={formData.name} 
-                        placeholder={isCustomName ? "Enter pipeline name" : "Must contain 'k8s' or 'deployment'"}
+                        placeholder="Enter a friendly pipeline name"
                         onChange={(e) => handleNameChange(e.target.value)} 
                     />
                     {nameError && <p style={styles.errorText}>{nameError}</p>}
@@ -176,7 +187,7 @@ const PipelineWizard = () => {
                     <button 
                         style={styles.primaryBtn} 
                         disabled={!!nameError || !formData.name}
-                        onClick={() => alert("Pipeline Created!")}
+                        onClick={handleCreatePipeline}
                     >
                         Create Pipeline
                     </button>
@@ -187,7 +198,6 @@ const PipelineWizard = () => {
     );
 };
 
-// --- THE FIX: EXPORT DEFAULT APP ---
 function App() {
   const { instance } = useMsal();
   return (
@@ -205,4 +215,4 @@ function App() {
   );
 }
 
-export default App; // This ensures the build doesn't fail on import
+export default App;
