@@ -11,9 +11,7 @@ const PipelineWizard = () => {
     const [yamlFiles, setYamlFiles] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     
-    // Support for multiple source types
-    const [sourceType, setSourceType] = useState("azure"); // 'azure' or 'github'
-    
+    const [sourceType, setSourceType] = useState("azure"); 
     const [isManualPath, setIsManualPath] = useState(false);
     const [isUnrestricted, setIsUnrestricted] = useState(false);
     const [nameError, setNameError] = useState("");
@@ -58,17 +56,20 @@ const PipelineWizard = () => {
         else { setNameError(""); }
     };
 
-    // Fetch repositories based on sourceType
     useEffect(() => {
         const fetchRepos = async () => {
-            setRepos([]); // Clear list for new source
+            setRepos([]); 
             try {
                 const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
                 const endpoint = sourceType === "azure" ? "/api/repos" : "/api/github/repos";
                 const res = await fetch(endpoint, { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
                 const data = await res.json();
-                setRepos(data || []);
-            } catch (err) { console.error(err); }
+                // FIX: Ensure data is an array before setting state
+                setRepos(Array.isArray(data) ? data : []);
+            } catch (err) { 
+                console.error(err);
+                setRepos([]); 
+            }
         };
         if (accounts.length > 0) fetchRepos();
     }, [instance, accounts, sourceType]);
@@ -84,7 +85,7 @@ const PipelineWizard = () => {
             
             const res = await fetch(endpoint, { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
             const data = await res.json();
-            setBranches(data || []);
+            setBranches(Array.isArray(data) ? data : []);
             setStep(2);
             setStatus("");
         } catch (err) { setStatus("Error loading branches."); }
@@ -100,7 +101,7 @@ const PipelineWizard = () => {
                 headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` }
             });
             const data = await res.json();
-            setYamlFiles(data || []);
+            setYamlFiles(Array.isArray(data) ? data : []);
         } catch (err) { console.error(err); }
     };
 
@@ -126,22 +127,36 @@ const PipelineWizard = () => {
                 <div style={{ width: "100%" }}>
                     <h2 style={{ fontSize: "18px", marginBottom: "15px" }}>1. Select Source & Repository</h2>
                     
-                    {/* Source Selection Tabs */}
                     <div style={styles.tabContainer}>
                         <div style={styles.tab(sourceType === "azure")} onClick={() => setSourceType("azure")}>Azure Repos</div>
                         <div style={styles.tab(sourceType === "github")} onClick={() => setSourceType("github")}>GitHub</div>
                     </div>
 
-                    <input type="text" placeholder={`Search ${sourceType} repositories...`} style={styles.input} onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} />
+                    {/* FIXED: Added ID and Name for browser autofill/accessibility */}
+                    <input 
+                        id="repoSearch"
+                        name="repoSearch"
+                        type="text" 
+                        placeholder={`Search ${sourceType} repositories...`} 
+                        style={styles.input} 
+                        onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} 
+                    />
                     <div style={styles.repoListWrapper}>
-                        {repos.filter(r => r.name.toLowerCase().includes(searchTerm)).map(r => (
-                            <button key={r.id} onClick={() => handleRepoSelect(r)} style={styles.repoItem}>
-                                <div style={{ width: "24px", color: sourceType === "azure" ? "#0078d4" : "#24292e", fontWeight: "bold" }}>
-                                    {sourceType === "azure" ? "A" : "G"}
-                                </div>
-                                <span style={{ flexGrow: 1 }}>{r.name}</span>
-                            </button>
-                        ))}
+                        {/* FIXED: Added Array check to prevent .filter crash */}
+                        {Array.isArray(repos) && repos.length > 0 ? (
+                            repos.filter(r => r.name.toLowerCase().includes(searchTerm)).map(r => (
+                                <button key={r.id} onClick={() => handleRepoSelect(r)} style={styles.repoItem}>
+                                    <div style={{ width: "24px", color: sourceType === "azure" ? "#0078d4" : "#24292e", fontWeight: "bold" }}>
+                                        {sourceType === "azure" ? "A" : "G"}
+                                    </div>
+                                    <span style={{ flexGrow: 1 }}>{r.name}</span>
+                                </button>
+                            ))
+                        ) : (
+                            <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+                                No {sourceType} repositories found.
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -150,8 +165,8 @@ const PipelineWizard = () => {
                 <div>
                     <h2>2. Configure Path ({sourceType === "azure" ? "Azure" : "GitHub"})</h2>
                     <p>Repository: <b>{formData.repoName}</b></p>
-                    <label style={styles.label}>Branch</label>
-                    <select style={styles.input} value={formData.branch} onChange={(e) => handleBranchChange(e.target.value)}>
+                    <label htmlFor="branchSelect" style={styles.label}>Branch</label>
+                    <select id="branchSelect" name="branchSelect" style={styles.input} value={formData.branch} onChange={(e) => handleBranchChange(e.target.value)}>
                         <option value="">-- Select Branch --</option>
                         {branches.map(b => <option key={b.name} value={b.name}>{b.name.replace('refs/heads/', '')}</option>)}
                     </select>
@@ -162,9 +177,9 @@ const PipelineWizard = () => {
                     </span>
 
                     {isManualPath ? (
-                        <input style={styles.input} placeholder="e.g. /azure-pipelines.yml" value={formData.yamlPath} onChange={(e) => setFormData({...formData, yamlPath: e.target.value})} />
+                        <input id="yamlPath" name="yamlPath" style={styles.input} placeholder="e.g. /azure-pipelines.yml" value={formData.yamlPath} onChange={(e) => setFormData({...formData, yamlPath: e.target.value})} />
                     ) : (
-                        <select style={styles.input} value={formData.yamlPath} onChange={(e) => setFormData({...formData, yamlPath: e.target.value})}>
+                        <select id="yamlFileSelect" name="yamlFileSelect" style={styles.input} value={formData.yamlPath} onChange={(e) => setFormData({...formData, yamlPath: e.target.value})}>
                             <option value="">-- Select File --</option>
                             {yamlFiles.map(f => <option key={f} value={f}>{f}</option>)}
                         </select>
@@ -178,13 +193,13 @@ const PipelineWizard = () => {
             {step === 3 && (
                 <div>
                     <h2>3. Review & Name</h2>
-                    <label style={styles.label}>Pipeline Name</label>
+                    <label htmlFor="pipelineName" style={styles.label}>Pipeline Name</label>
                     <div style={{ marginBottom: "10px" }}>
                         <span style={styles.toggleLink} onClick={() => { setIsUnrestricted(!isUnrestricted); setNameError(""); }}>
                             {isUnrestricted ? "Switch to Standard Mode" : "Switch to Unrestricted Mode"}
                         </span>
                     </div>
-                    <input style={styles.input} value={formData.name} placeholder="Pipeline Name" onChange={(e) => handleNameChange(e.target.value)} />
+                    <input id="pipelineName" name="pipelineName" style={styles.input} value={formData.name} placeholder="Pipeline Name" onChange={(e) => handleNameChange(e.target.value)} />
                     {nameError && <p style={styles.errorText}>{nameError}</p>}
 
                     <button style={styles.primaryBtn} disabled={!!nameError || !formData.name} onClick={handleCreatePipeline}>Create Pipeline</button>
