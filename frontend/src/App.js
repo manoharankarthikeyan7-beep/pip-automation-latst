@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useMsal, AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
 import { loginRequest } from "./authConfig";
 
+// Ensure this matches your Azure App Service URL
+const BACKEND_URL = "https://pipelineapi-hhb5hshxgjgsbueh.centralus-01.azurewebsites.net";
+
 const PipelineWizard = () => {
     const { instance, accounts } = useMsal();
     const [step, setStep] = useState(1);
@@ -20,7 +23,6 @@ const PipelineWizard = () => {
         repoId: '', repoName: '', branch: '', yamlPath: '', name: '' 
     });
 
-    // --- SESSION TIMEOUT LOGIC ---
     useEffect(() => {
         const timeoutLimit = 10 * 60 * 1000;
         const timer = setTimeout(() => {
@@ -57,19 +59,29 @@ const PipelineWizard = () => {
         else { setNameError(""); }
     };
 
-    // --- FETCH REPOS (With Array Check) ---
     useEffect(() => {
         const fetchRepos = async () => {
             setRepos([]);
-            setStatus(""); 
+            setStatus("Fetching repositories..."); 
             try {
                 const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
                 const endpoint = sourceType === "azure" ? "/api/repos" : "/api/github/repos";
-                const res = await fetch(endpoint, { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
+                
+                const res = await fetch(`${BACKEND_URL}${endpoint}`, { 
+                    headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } 
+                });
+                
+                // Safety check: Is the response actually JSON?
+                const contentType = res.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    throw new Error("Server returned non-JSON response. Check API routing.");
+                }
+
                 const data = await res.json();
 
                 if (res.ok && Array.isArray(data)) {
                     setRepos(data);
+                    setStatus("");
                 } else {
                     setRepos([]);
                     setStatus(data.error || "Failed to load repositories.");
@@ -77,7 +89,7 @@ const PipelineWizard = () => {
             } catch (err) { 
                 console.error(err);
                 setRepos([]);
-                setStatus("Connection error.");
+                setStatus("Connection error: " + err.message);
             }
         };
         if (accounts.length > 0) fetchRepos();
@@ -88,17 +100,16 @@ const PipelineWizard = () => {
         setStatus(`Loading ${sourceType} configuration...`);
         try {
             const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
-            
-            // Fix: Use encodeURIComponent for repo.id to handle GitHub "owner/repo" slashes
             const encodedRepoId = encodeURIComponent(repo.id);
             const endpoint = sourceType === "azure" 
                 ? `/api/repos/${encodedRepoId}/branches` 
                 : `/api/github/repos/${encodedRepoId}/branches`;
             
-            const res = await fetch(endpoint, { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
+            const res = await fetch(`${BACKEND_URL}${endpoint}`, { 
+                headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } 
+            });
             const data = await res.json();
             
-            // Fix: Added support for wrapped response values if coming from Service Connection proxy
             const branchList = Array.isArray(data) ? data : (data.value || []);
 
             if (branchList.length > 0) {
@@ -120,8 +131,9 @@ const PipelineWizard = () => {
         try {
             const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
             const encodedRepoId = encodeURIComponent(formData.repoId);
-            const baseUrl = sourceType === "azure" ? `/api/repos/${encodedRepoId}` : `/api/github/repos/${encodedRepoId}`;
-            const res = await fetch(`${baseUrl}/yaml-files?branch=${branchName}`, {
+            const endpointPath = sourceType === "azure" ? `/api/repos/${encodedRepoId}` : `/api/github/repos/${encodedRepoId}`;
+            
+            const res = await fetch(`${BACKEND_URL}${endpointPath}/yaml-files?branch=${branchName}`, {
                 headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` }
             });
             const data = await res.json();
@@ -133,7 +145,7 @@ const PipelineWizard = () => {
         setStatus("🚀 Creating pipeline...");
         try {
             const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
-            const res = await fetch("/api/pipelines/create", {
+            const res = await fetch(`${BACKEND_URL}/api/pipelines/create`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tokenResponse.accessToken}` },
                 body: JSON.stringify({ ...formData, pipelineName: formData.name, sourceType, runPipeline: false })
