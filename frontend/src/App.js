@@ -57,7 +57,7 @@ const PipelineWizard = () => {
         else { setNameError(""); }
     };
 
-    // --- FETCH REPOS (With JSON Validation) ---
+    // --- FETCH REPOS ---
     useEffect(() => {
         const fetchRepos = async () => {
             setRepos([]);
@@ -89,12 +89,16 @@ const PipelineWizard = () => {
         if (accounts.length > 0) fetchRepos();
     }, [instance, accounts, sourceType]);
 
+    // --- FETCH BRANCHES (Fixed Encoding) ---
     const handleRepoSelect = async (repo) => {
         setFormData({ ...formData, repoId: repo.id, repoName: repo.name });
         setStatus(`Loading ${sourceType} configuration...`);
         try {
             const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
-            const encodedRepoId = encodeURIComponent(repo.id);
+            
+            // FIX: Double encode the repo ID to prevent intermediate routers from turning %2F back into a slash
+            const encodedRepoId = encodeURIComponent(encodeURIComponent(repo.id));
+            
             const endpoint = sourceType === "azure" 
                 ? `/api/repos/${encodedRepoId}/branches` 
                 : `/api/github/repos/${encodedRepoId}/branches`;
@@ -122,12 +126,16 @@ const PipelineWizard = () => {
         }
     };
 
+    // --- FETCH YAML FILES (Fixed Encoding) ---
     const handleBranchChange = async (branchName) => {
         setFormData({ ...formData, branch: branchName, yamlPath: '' });
         if (!branchName) return;
         try {
             const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
-            const encodedRepoId = encodeURIComponent(formData.repoId);
+            
+            // FIX: Double encode here as well
+            const encodedRepoId = encodeURIComponent(encodeURIComponent(formData.repoId));
+            
             const baseUrl = sourceType === "azure" ? `/api/repos/${encodedRepoId}` : `/api/github/repos/${encodedRepoId}`;
             const res = await fetch(`${baseUrl}/yaml-files?branch=${branchName}`, {
                 headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` }
