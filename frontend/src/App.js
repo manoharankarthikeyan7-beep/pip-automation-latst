@@ -57,7 +57,7 @@ const PipelineWizard = () => {
         else { setNameError(""); }
     };
 
-    // --- FETCH REPOS (With Array Check) ---
+    // --- FETCH REPOS (With JSON Validation) ---
     useEffect(() => {
         const fetchRepos = async () => {
             setRepos([]);
@@ -66,6 +66,12 @@ const PipelineWizard = () => {
                 const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
                 const endpoint = sourceType === "azure" ? "/api/repos" : "/api/github/repos";
                 const res = await fetch(endpoint, { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
+                
+                const contentType = res.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    throw new Error("Server returned HTML. Check backend route and environment variables.");
+                }
+
                 const data = await res.json();
 
                 if (res.ok && Array.isArray(data)) {
@@ -77,7 +83,7 @@ const PipelineWizard = () => {
             } catch (err) { 
                 console.error(err);
                 setRepos([]);
-                setStatus("Connection error.");
+                setStatus(`Error: ${err.message}`);
             }
         };
         if (accounts.length > 0) fetchRepos();
@@ -88,17 +94,19 @@ const PipelineWizard = () => {
         setStatus(`Loading ${sourceType} configuration...`);
         try {
             const tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
-            
-            // Fix: Use encodeURIComponent for repo.id to handle GitHub "owner/repo" slashes
             const encodedRepoId = encodeURIComponent(repo.id);
             const endpoint = sourceType === "azure" 
                 ? `/api/repos/${encodedRepoId}/branches` 
                 : `/api/github/repos/${encodedRepoId}/branches`;
             
             const res = await fetch(endpoint, { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
-            const data = await res.json();
             
-            // Fix: Added support for wrapped response values if coming from Service Connection proxy
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new Error("Branch API returned HTML. Possible 404 on backend.");
+            }
+
+            const data = await res.json();
             const branchList = Array.isArray(data) ? data : (data.value || []);
 
             if (branchList.length > 0) {
@@ -110,7 +118,7 @@ const PipelineWizard = () => {
             }
         } catch (err) { 
             console.error(err);
-            setStatus("Error loading branches."); 
+            setStatus(`Error: ${err.message}`); 
         }
     };
 
@@ -124,8 +132,15 @@ const PipelineWizard = () => {
             const res = await fetch(`${baseUrl}/yaml-files?branch=${branchName}`, {
                 headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` }
             });
-            const data = await res.json();
-            setYamlFiles(Array.isArray(data) ? data : []);
+
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                const data = await res.json();
+                setYamlFiles(Array.isArray(data) ? data : []);
+            } else {
+                console.error("YAML API returned non-JSON response.");
+                setYamlFiles([]);
+            }
         } catch (err) { console.error(err); }
     };
 
