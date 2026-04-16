@@ -10,6 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Helpers for Headers
 const getAdoHeader = () => {
     const pat = process.env.DEVOPS_PAT;
     return pat ? `Basic ${Buffer.from(`:${pat}`).toString('base64')}` : null;
@@ -68,7 +69,7 @@ app.get('/api/github/repos', validateToken, async (req, res) => {
     } catch (e) { res.status(502).json({ error: "GitHub Unreachable" }); }
 });
 
-// 2. Fetch Branches (The fix for your error)
+// 2. Fetch Branches
 app.get('/api/repos/:repoId/branches', validateToken, async (req, res) => {
     try {
         const response = await axios.get(
@@ -113,10 +114,21 @@ app.get('/api/github/repos/:repoId/yaml-files', validateToken, async (req, res) 
     } catch (e) { res.json([]); }
 });
 
-// --- SERVE FRONTEND ---
+// --- SERVE FRONTEND (Improved for Azure) ---
 const buildPath = path.join(__dirname, 'build');
+console.log("Checking for static files at:", buildPath);
+
 app.use(express.static(buildPath));
-app.get('*', (req, res) => res.sendFile(path.join(buildPath, 'index.html')));
+
+app.get('*', (req, res) => {
+    const indexPath = path.join(buildPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error("Critical: index.html not found!", err);
+            res.status(500).send("The build folder is missing. Ensure 'npm run build' executed correctly.");
+        }
+    });
+});
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server online on ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
