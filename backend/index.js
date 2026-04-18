@@ -10,9 +10,29 @@ require('dotenv').config();
 
 const app = express();
 
-// SECURITY FIX: Helmet sets various HTTP headers to prevent XSS, clickjacking, 
-// and hides the 'X-Powered-By' header so hackers don't know you are using Express.
-app.use(helmet()); 
+/**
+ * SECURITY FIX: Updated Content Security Policy (CSP)
+ * We must explicitly allow the browser to connect to Microsoft's login servers.
+ * Without this, Helmet's default policy blocks the MSAL authentication handshake.
+ */
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        "default-src": ["'self'"],
+        "connect-src": [
+          "'self'", 
+          "https://login.microsoftonline.com", 
+          "https://graph.microsoft.com"
+        ],
+        "script-src": ["'self'", "'unsafe-inline'", "https://login.microsoftonline.com"],
+        "frame-src": ["'self'", "https://login.microsoftonline.com"],
+        "img-src": ["'self'", "data:"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+      },
+    },
+  })
+);
 
 // SECURITY FIX: Prevents a malicious actor from crashing your server by sending 
 // a massive JSON file. Limits the request body to 10kb.
