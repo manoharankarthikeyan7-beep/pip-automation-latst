@@ -13,7 +13,6 @@ variables:
   - name: resourceGroupName
     value: 'pipelineautomationapi'
   
-  # SECURITY IDs
   - name: sonarCloudOrg
     value: 'senthiln0281'
   - name: sonarProjectKey
@@ -30,7 +29,6 @@ stages:
         versionSpec: '18.x'
 
     # --- SECTION 1: SONARCLOUD PREPARATION ---
-    # Try @3 - This is the standard for 2026 environments
     - task: SonarCloudPrepare@3
       displayName: 'Prepare SonarCloud'
       inputs:
@@ -38,8 +36,10 @@ stages:
         organization: '$(sonarCloudOrg)'
         scannerMode: 'CLI'
         configMode: 'manual'
-        projectKey: '$(sonarProjectKey)'
-        projectName: 'PipelineGenerator'
+        # FIXED: Using 'cli' prefixes required for CLI scannerMode
+        cliProjectKey: '$(sonarProjectKey)'
+        cliProjectName: 'PipelineGenerator'
+        cliSources: '.' 
 
     - script: |
         cd backend
@@ -63,7 +63,6 @@ stages:
         organization: '262c0b5b-633f-4261-a4b6-762bc547c1e9'
 
     # --- SECTION 3: SONARCLOUD EXECUTION ---
-    # Try @3 - Matching the version of the Prepare task
     - task: SonarCloudAnalyze@3
       displayName: 'Run SonarCloud Analysis'
 
