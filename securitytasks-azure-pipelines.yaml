@@ -13,7 +13,6 @@ variables:
   - name: resourceGroupName
     value: 'pipelineautomationapi'
   
-  # SECURITY IDs: Values mapped from your SonarCloud dashboard
   - name: sonarCloudOrg
     value: 'senthiln0281'
   - name: sonarProjectKey
@@ -30,9 +29,8 @@ stages:
         versionSpec: '18.x'
 
     # --- SECTION 1: SONARCLOUD PREPARATION ---
-    # UPDATED: Using version @3 to match the latest marketplace standard.
-    # This prepares the environment for code quality analysis.
-    - task: SonarCloudPrepare@3
+    # Reverting to @1 for maximum compatibility with older agents
+    - task: SonarCloudPrepare@1
       displayName: 'Prepare SonarCloud'
       inputs:
         SonarCloud: 'SonarCloudConnection'
@@ -54,8 +52,6 @@ stages:
       displayName: 'Build Frontend'
 
     # --- SECTION 2: SNYK VULNERABILITY SCAN ---
-    # This checks your npm dependencies for known security exploits.
-    # It is set to fail the build if high-severity issues are found.
     - task: SnykSecurityScan@1
       displayName: 'Snyk Security Scan'
       inputs:
@@ -65,19 +61,17 @@ stages:
         failOnIssues: true
         organization: '262c0b5b-633f-4261-a4b6-762bc547c1e9'
 
-    # --- SECTION 3: SONARCLOUD ANALYSIS ---
-    # UPDATED: Using version @2 for the actual execution step.
-    # Runs the scan and publishes results back to your SonarCloud dashboard.
-    - task: SonarCloudAnalyze@2
+    # --- SECTION 3: SONARCLOUD EXECUTION ---
+    # Reverting to @1 as per the error message's suggestion that @2 is missing
+    - task: SonarCloudAnalyze@1
       displayName: 'Run SonarCloud Analysis'
 
-    - task: SonarCloudPublish@2
+    - task: SonarCloudPublish@1
       displayName: 'Publish SonarCloud Results'
       inputs:
         pollingTimeoutSec: '300'
 
     # --- SECTION 4: MERGE & ARCHIVE ---
-    # Combines the React build into the Express 'public' folder for a unified deployment.
     - script: |
         mkdir -p backend/public
         cp -r frontend/build/* backend/public/
@@ -97,7 +91,6 @@ stages:
 - stage: Deploy
   displayName: 'Deploy to Azure'
   dependsOn: Security_and_Build
-  # SECURITY CHECK: Only deploy if the security scans and build were successful.
   condition: succeeded() 
   jobs:
   - job: DeployWeb
