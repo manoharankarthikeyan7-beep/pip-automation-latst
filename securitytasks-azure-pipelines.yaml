@@ -1,6 +1,6 @@
 trigger:
 - main
-
+- security_scan_fix # DESCRIPTION: Added this branch to the CI trigger list.
 pool:
   vmImage: 'ubuntu-latest'
 
