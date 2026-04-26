@@ -18,8 +18,13 @@
     "postcss": "^8.4.31",
     "@tootallnate/once": "^3.0.1",
     "webpack-dev-server": "^5.2.1",
+    "uuid": "^9.0.1",
     "react-scripts": {
-      "webpack-dev-server": "^5.2.1",
+      "webpack-dev-server": {
+        "sockjs": {
+          "uuid": "^9.0.1"
+        }
+      },
       "postcss": "^8.4.31",
       "eslint": "8.57.1",
       "serialize-javascript": "7.0.5",
