@@ -6,9 +6,9 @@ const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
 const path = require('path');
 const axios = require('axios');
-// ADDED: Native Node modules for HTTPS
-const https = require('https');
-const fs = require('fs');
+// --- SSL MODULES (Commented for Company Setup) ---
+// const https = require('https');
+// const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -243,9 +243,16 @@ app.post('/api/pipelines/create', validateToken, async (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// --- UPDATED SECURE LISTENER ---
+// --- UPDATED LISTENER FOR COMPANY SETUP ---
 const PORT = process.env.PORT || 8080;
 
+// Standard HTTP listener (SSL handled by Company Infrastructure)
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
+/* 
+// --- COMMENTED OUT SECURE LISTENER ---
 try {
     const options = {
         key: fs.readFileSync(path.join(__dirname, 'key.pem')),
@@ -259,3 +266,4 @@ try {
     console.error("ERROR: Could not find key.pem or cert.pem in the backend directory.");
     process.exit(1);
 }
+*/
