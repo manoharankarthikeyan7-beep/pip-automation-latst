@@ -25,10 +25,10 @@ COPY --from=backend-builder /app/backend ./backend
 # Copy the frontend build artifacts
 COPY --from=frontend-builder /app/frontend/build ./backend/public
 
-# --- NEW: Copy SSL Certificates ---
+# --- NEW: Copy SSL Certificates (Commented out for Company Setup) ---
 # Ensure key.pem and cert.pem are in your local folder before building
-COPY key.pem ./backend/key.pem
-COPY cert.pem ./backend/cert.pem
+# COPY key.pem ./backend/key.pem
+# COPY cert.pem ./backend/cert.pem
 
 # Set permissions for the non-root user
 RUN chown -R appuser:appgroup /app/backend
