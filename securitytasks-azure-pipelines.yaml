@@ -12,15 +12,16 @@ variables:
     value: 'Azure subscription 1 (e26f51cc-2002-4eef-9131-5841b18763a7)' 
   - name: resourceGroupName
     value: 'pipelineautomationapi'
-  - name: sonarCloudOrg
-    value: 'senthiln0281'
-  - name: sonarProjectKey
-    value: 'senthiln0281_Pipeline'
+  # --- SonarCloud Variables (Commented for Company Setup) ---
+  # - name: sonarCloudOrg
+  #   value: 'senthiln0281'
+  # - name: sonarProjectKey
+  #   value: 'senthiln0281_Pipeline'
   - name: NODE_OPTIONS
     value: '--max-old-space-size=4096'
   # --- NEW DOCKER VARIABLES ---
   - name: containerRegistryConnection
-    value: 'MyACRConnection' # Replace with your Azure DevOps Service Connection name
+    value: 'MyACRConnection' 
   - name: imageRepository
     value: 'pipeline-generator'
   - name: dockerfilePath
@@ -37,19 +38,24 @@ stages:
       inputs:
         versionSpec: '20.x'
 
-    - task: SonarCloudPrepare@3
-      displayName: 'Prepare SonarCloud'
-      inputs:
-        SonarCloud: 'SonarCloudConnection'
-        organization: '$(sonarCloudOrg)'
-        scannerMode: 'CLI'
-        configMode: 'manual'
-        cliProjectKey: '$(sonarProjectKey)'
-        cliProjectName: 'PipelineGenerator'
-        extraProperties: |
-          sonar.sources=.
-          sonar.exclusions=**/node_modules/**, **/build/**, **/dist/**
-          sonar.javascript.node.maxspace=4096
+    # --- SonarCloud Prepare (Commented for Company Setup) ---
+    # - task: SonarCloudPrepare@3
+    #   displayName: 'Prepare SonarCloud'
+    #   inputs:
+    #     SonarCloud: 'SonarCloudConnection'
+    #     organization: '$(sonarCloudOrg)'
+    #     scannerMode: 'CLI'
+    #     configMode: 'manual'
+    #     cliProjectKey: '$(sonarProjectKey)'
+    #     cliProjectName: 'PipelineGenerator'
+    #     extraProperties: |
+    #       sonar.sources=.
+    #       sonar.exclusions=**/node_modules/**, **/build/**, **/dist/**
+    #       sonar.javascript.node.maxspace=4096
+
+    # --- SSL Cert Generation (Omitted/Commented if it was here) ---
+    # - script: openssl req -x509 ... (etc)
+    #   displayName: 'Generate Certs'
 
     - script: |
         cd backend
@@ -62,21 +68,21 @@ stages:
         npm run build
       displayName: 'Build Frontend'
 
-    - task: SnykSecurityScan@1
-      displayName: 'Snyk Security Scan'
-      inputs:
-        serviceConnectionEndpoint: 'SnykConnection'
-        testType: 'app'
-        monitorOnBuild: true
-        failOnIssues: true 
-        organization: '262c0b5b-633f-4261-a4b6-762bc547c1e9'
-        additionalArguments: '--all-projects'
+    # --- Snyk Security Scan (Commented for Company Setup) ---
+    # - task: SnykSecurityScan@1
+    #   displayName: 'Snyk Security Scan'
+    #   inputs:
+    #     serviceConnectionEndpoint: 'SnykConnection'
+    #     testType: 'app'
+    #     monitorOnBuild: true
+    #     failOnIssues: true 
+    #     organization: '262c0b5b-633f-4261-a4b6-762bc547c1e9'
+    #     additionalArguments: '--all-projects'
 
-    - task: SonarCloudAnalyze@3
-      displayName: 'Run SonarCloud Analysis'
+    # --- SonarCloud Analysis (Commented for Company Setup) ---
+    # - task: SonarCloudAnalyze@3
+    #   displayName: 'Run SonarCloud Analysis'
 
-    # DESCRIPTION: Task disabled as requested. 
-    # Analysis results will still be available in the SonarCloud dashboard.
     # - task: SonarCloudPublish@3
     #   displayName: 'Publish Quality Gate Result'
     #   inputs:
